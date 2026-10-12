@@ -346,6 +346,14 @@ This approach applies across Kubernetes, container runtime, observability and Ka
 
 ---
 
+## 🧰 Helm command catalog
+
+A separate command reference collects chart discovery, version pinning, rendering, installation, upgrades, rollback, validation and air-gapped packaging workflows across the platform. It distinguishes documented Helm deployments from components whose original chart/version or installation method still needs verification.
+
+📘 **[Open the Portfolio-Wide Helm Command Catalog](docs/helm-command-catalog.md)**
+
+---
+
 ## 🧯 Operational problem-solving
 
 The portfolio will emphasize actual engineering behavior:
