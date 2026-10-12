@@ -27,8 +27,8 @@ Never assume the installed chart version from an application image tag. Do not r
 | Platform area | Repository / documentation | Status |
 |---|---|---|
 | SpiderNet EgressGateway | [kubernetes-networking — Helm installation](https://github.com/MoeinBineshpazhooh/kubernetes-networking/tree/main/egress/spidernet-egressgateway/helm) | **Documented Helm workflow** |
-| Prometheus metrics | [enterprise-observability-platform](https://github.com/MoeinBineshpazhooh/enterprise-observability-platform) | Exact chart/release to confirm |
-| Elasticsearch | [enterprise-observability-platform](https://github.com/MoeinBineshpazhooh/enterprise-observability-platform) and [elk-centralized-log-management](https://github.com/MoeinBineshpazhooh/elk-centralized-log-management) | Exact chart/release to confirm |
+| Prometheus metrics | No Prometheus Helm deployment or chart lock was found in the reviewed repository trees | Actual installation repo/method/version to confirm |
+| Elasticsearch | [enterprise-observability-platform](https://github.com/MoeinBineshpazhooh/enterprise-observability-platform) and [elk-centralized-log-management](https://github.com/MoeinBineshpazhooh/elk-centralized-log-management) | **Docker Compose** in the observability platform; **APT/systemd** in the centralized ELK repo |
 | Argo CD | [Argocd-Gitops-Platform](https://github.com/MoeinBineshpazhooh/Argocd-Gitops-Platform) | Current repository documents manifest-based installation |
 | Longhorn | [Storage-Artifact-Platform](https://github.com/MoeinBineshpazhooh/Storage-Artifact-Platform) | Operational use documented; installation was performed by another engineer |
 
@@ -41,11 +41,35 @@ Never assume the installed chart version from an application image tag. Do not r
 
 The dedicated runbook covers Calico preparation, chart discovery/version pinning, tunnel subnet validation, installation, verification, upgrade, rollback, uninstall and restricted-environment image review. Maintain one authoritative version of those detailed commands in the networking repository.
 
-## 2. 📊 Prometheus — discover, pin, render and install
+## 2. 📊 Prometheus — installation record still needed
 
-The live installation's exact chart identity and version still need to be recorded. Do not assume whether it was the standalone `prometheus-community/prometheus` chart or `prometheus-community/kube-prometheus-stack`.
+The reviewed repository trees do **not** currently contain a Prometheus Helm chart reference, values file, Helm release record or Prometheus deployment manifest. Your platform work includes Prometheus monitoring, but the repository evidence available here is not enough to identify the actual installation method, chart name or version.
 
-### Discover official chart options
+For now, use these **read-only discovery commands on the cluster where Prometheus is running**. They identify whether Helm manages the release without installing or changing anything:
+
+```bash
+helm list -A
+helm list -A | grep -i prometheus
+kubectl get pods,svc -A | grep -i prometheus
+kubectl get deploy,statefulset -A | grep -i prometheus
+kubectl get crd | grep -Ei 'prometheus|monitoring.coreos.com'
+```
+
+If a Helm release is found, capture its actual release, namespace, chart and app version from `helm list -A`, then inspect it:
+
+```bash
+helm status <release-name> -n <namespace>
+helm get metadata <release-name> -n <namespace>
+helm get values <release-name> -n <namespace> -a
+helm get manifest <release-name> -n <namespace>
+helm history <release-name> -n <namespace>
+```
+
+If `helm get metadata` is unsupported by the installed Helm version, the chart and app version shown by `helm list` plus the other release inspection commands are sufficient to start the record.
+
+**Do not install a new Prometheus chart merely to populate this catalog.** First identify the existing release or locate the repository that owns its actual configuration. Once confirmed, replace this discovery-only section with the exact chart, version, sanitized values and reproducible commands.
+
+Optional official chart discovery, only if a new chart-based deployment is intentionally planned:
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -54,120 +78,90 @@ helm search repo prometheus-community/prometheus --versions
 helm search repo prometheus-community/kube-prometheus-stack --versions
 ```
 
-Choose the chart based on the intended architecture. The standalone chart and the broader Prometheus Operator stack are not interchangeable. Do not deploy a second monitoring stack into a live cluster without checking releases, CRDs, storage, ServiceMonitors/PodMonitors and alerting configuration.
-
-### Inspect and pin the selected chart
-
-The following uses the standalone chart as an **example only**, not as a claim about the original production release:
-
-```bash
-export PROMETHEUS_RELEASE="prometheus"
-export PROMETHEUS_NAMESPACE="monitoring"
-export PROMETHEUS_CHART_VERSION="<verified-chart-version>"
-
-helm show chart prometheus-community/prometheus --version "$PROMETHEUS_CHART_VERSION"
-helm show values prometheus-community/prometheus --version "$PROMETHEUS_CHART_VERSION" > prometheus-default-values.reference.yaml
-```
-
-Review defaults and create a separate minimal `values-environment.yaml` for persistence, resources, service exposure, retention and scrape settings. Do not commit secrets or live internal addresses.
-
-### Render and review
-
-```bash
-helm template "$PROMETHEUS_RELEASE" prometheus-community/prometheus \
-  --namespace "$PROMETHEUS_NAMESPACE" \
-  --version "$PROMETHEUS_CHART_VERSION" \
-  --values values-environment.yaml > rendered-prometheus.yaml
-```
-
-### Install or upgrade after review
-
-```bash
-helm upgrade --install "$PROMETHEUS_RELEASE" prometheus-community/prometheus \
-  --namespace "$PROMETHEUS_NAMESPACE" \
-  --create-namespace \
-  --version "$PROMETHEUS_CHART_VERSION" \
-  --values values-environment.yaml \
-  --wait \
-  --timeout 10m
-```
-
-Validate:
-
-```bash
-helm status "$PROMETHEUS_RELEASE" -n "$PROMETHEUS_NAMESPACE"
-helm list -n "$PROMETHEUS_NAMESPACE"
-helm get values "$PROMETHEUS_RELEASE" -n "$PROMETHEUS_NAMESPACE" -a
-kubectl get pods,svc,pvc -n "$PROMETHEUS_NAMESPACE" -o wide
-kubectl get events -n "$PROMETHEUS_NAMESPACE" --sort-by=.lastTimestamp
-```
+The standalone Prometheus chart and the Prometheus Operator stack are different deployment choices. Do not treat them as interchangeable or deploy a second monitoring stack without checking existing releases, CRDs, storage, scrape resources and alerting configuration.
 
 Official source: [Prometheus Community Helm Charts](https://github.com/prometheus-community/helm-charts).
 
-## 3. 🔎 Elasticsearch — discover, pin, render and install
+---
 
-The platform documents Elasticsearch 9.x operations, but the exact chart and release used in the live cluster must be confirmed before describing these commands as the original deployment method.
+## 3. 🔎 Elasticsearch — documented non-Helm installation methods
 
-### Discover the official Elastic charts
+The reviewed repositories document **two non-Helm deployment patterns**. Do not label these existing implementations as Helm installations.
 
-```bash
-helm repo add elastic https://helm.elastic.co
-helm repo update
-helm search repo elastic/elasticsearch --versions
-helm search repo elastic/kibana --versions
-```
+### 3.1 Enterprise Observability Platform — Docker Compose
 
-### Inspect and pin the Elasticsearch chart
+The [enterprise-observability-platform Elasticsearch README](https://github.com/MoeinBineshpazhooh/enterprise-observability-platform/blob/main/elasticsearch/README.md) documents Elasticsearch 9.3.3 on three hosts using Docker Compose, TLS, persistent host-mounted data, ILM and rollover.
+
+The repository uses one Compose file per node. On the appropriate host, the documented pattern is:
 
 ```bash
-export ELASTICSEARCH_RELEASE="elasticsearch"
-export ELASTICSEARCH_NAMESPACE="observability"
-export ELASTICSEARCH_CHART_VERSION="<verified-chart-version>"
+# Run on the host assigned to node 01
+docker compose -f docker-compose.es01.yml up -d
 
-helm show chart elastic/elasticsearch --version "$ELASTICSEARCH_CHART_VERSION"
-helm show values elastic/elasticsearch --version "$ELASTICSEARCH_CHART_VERSION" > elasticsearch-default-values.reference.yaml
+# On the other assigned hosts, use the matching file:
+docker compose -f docker-compose.es02.yml up -d
+docker compose -f docker-compose.es03.yml up -d
 ```
 
-The chart version must be compatible with the target Elasticsearch version; chart and application versions are not necessarily identical. Create reviewed values for node roles, persistent storage, resources, TLS, credentials and discovery. Never commit production secrets.
+Run only the file matching the current host and deployment plan. Before starting a node, review the Compose file, environment values, certificate paths, persistent data paths and cluster configuration. Do not launch all three files on one host unless the topology was explicitly designed for that.
 
-### Render and review
+Read-only checks:
 
 ```bash
-helm template "$ELASTICSEARCH_RELEASE" elastic/elasticsearch \
-  --namespace "$ELASTICSEARCH_NAMESPACE" \
-  --version "$ELASTICSEARCH_CHART_VERSION" \
-  --values values-environment.yaml > rendered-elasticsearch.yaml
+docker compose -f docker-compose.es01.yml ps
+docker logs --tail 100 es01
 ```
 
-### Install or upgrade after review
+The container name can differ if the Compose configuration sets another name. Check the file and use the actual configured container name.
+
+### 3.2 Centralized Log Management — APT and systemd
+
+The [ELK centralized log management Elasticsearch guide](https://github.com/MoeinBineshpazhooh/elk-centralized-log-management/blob/main/elasticsearch/README.md) documents Elasticsearch 9.x installed from the official Elastic APT repository and operated as a systemd service on Ubuntu/Debian. The repository also contains RPM-oriented procedures for supported systems.
+
+The Debian/Ubuntu installation commands in that guide include:
 
 ```bash
-helm upgrade --install "$ELASTICSEARCH_RELEASE" elastic/elasticsearch \
-  --namespace "$ELASTICSEARCH_NAMESPACE" \
-  --create-namespace \
-  --version "$ELASTICSEARCH_CHART_VERSION" \
-  --values values-environment.yaml \
-  --wait \
-  --timeout 15m
+sudo apt update
+sudo apt install -y gnupg apt-transport-https
+
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch \
+  | gpg --dearmor \
+  | sudo tee /usr/share/keyrings/elasticsearch-keyring.gpg >/dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/9.x/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/elastic-9.x.list
+
+sudo apt update
+sudo apt install -y elasticsearch
+sudo systemctl enable elasticsearch
+sudo systemctl start elasticsearch
+sudo systemctl status elasticsearch
 ```
 
-Validate:
+These are host-level package/service commands, **not Helm commands**. Use them only when intentionally building the APT/systemd deployment; do not run them on a host that already has a live node without following the repository's migration and cluster procedure.
+
+### 3.3 If you intentionally need an Elasticsearch Helm deployment
+
+The current repository evidence does not establish that Elasticsearch was installed through Helm. For a separate chart-based deployment, first review the [official Elastic Helm Charts repository](https://github.com/elastic/helm-charts), check its maintenance and version compatibility for the desired Elasticsearch release, and validate the chart against your architecture. Do not apply a new chart to an existing cluster as a shortcut to reproducing the current deployment.
+
+To inventory a possible existing Helm release:
 
 ```bash
-helm status "$ELASTICSEARCH_RELEASE" -n "$ELASTICSEARCH_NAMESPACE"
-helm list -n "$ELASTICSEARCH_NAMESPACE"
-helm get values "$ELASTICSEARCH_RELEASE" -n "$ELASTICSEARCH_NAMESPACE" -a
-kubectl get pods,svc,pvc -n "$ELASTICSEARCH_NAMESPACE" -o wide
-kubectl get events -n "$ELASTICSEARCH_NAMESPACE" --sort-by=.lastTimestamp
+helm list -A | grep -i elastic
+kubectl get pods,statefulsets -A | grep -i elastic
 ```
 
-Do not deploy a fresh chart into a namespace containing a live Elasticsearch cluster without a migration plan. Stateful data, certificates, cluster identity and PVCs need deliberate handling.
+Only if the actual deployment is confirmed to be Helm-managed should this catalog record the exact chart/version and preserve its sanitized values and manifests.
 
-Official source: [Elastic Helm Charts](https://github.com/elastic/helm-charts).
+---
 
-## 4. 🚀 Argo CD — preserve the documented installation method
+## 4. 🚀 Argo CD — manifest-based installation
 
-The [Argocd-Gitops-Platform repository](https://github.com/MoeinBineshpazhooh/Argocd-Gitops-Platform) documents a manifest-based installation, not a Helm release. Keep its installation method consistent instead of adding Helm commands merely to make every component look Helm-based.
+The [Argocd-Gitops-Platform repository](https://github.com/MoeinBineshpazhooh/Argocd-Gitops-Platform) documents Argo CD installation through Kubernetes manifests, not a Helm release. Keep its installation method consistent instead of adding Helm commands merely to make every component look Helm-based.
+
+Use the repository's [installation guide](https://github.com/MoeinBineshpazhooh/Argocd-Gitops-Platform/blob/main/docs/installation.md) for the reviewed Argo CD manifest version, HAProxy ingress, TLS, CLI setup, repository credentials, Applications and notifications. For controlled environments, pin a reviewed Argo CD release/tag rather than relying on a moving branch URL. Inspect the current installation before applying any installation manifest.
+
+---The [Argocd-Gitops-Platform repository](https://github.com/MoeinBineshpazhooh/Argocd-Gitops-Platform) documents a manifest-based installation, not a Helm release. Keep its installation method consistent instead of adding Helm commands merely to make every component look Helm-based.
 
 Use the repository's installation guide for the exact Argo CD installation, HAProxy ingress, TLS, CLI setup, repository credentials, Applications and notifications. For a controlled environment, pin a reviewed Argo CD release/tag rather than relying on a moving branch URL. Inspect the current installation before applying any installation manifest.
 
