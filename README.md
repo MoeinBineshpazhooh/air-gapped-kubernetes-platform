@@ -59,7 +59,7 @@ The Kubernetes foundation is designed around the realities of operating clusters
 - control-plane and worker lifecycle
 - CNI networking
 - NetworkPolicy enforcement
-- MetalLB / bare-metal LoadBalancer capability
+- external HAProxy-based traffic management
 - ingress traffic management
 - persistent storage
 - Ansible-based repeatable operations
@@ -93,12 +93,27 @@ The dedicated cluster repository presents this as an **On-Premises Kubernetes De
 
 ---
 
-## 🧩 Project ecosystem — 10 focused repositories
+## 🧩 Project ecosystem — focused repositories
 
-| # | Repository | Primary capability |
-|---:|---|---|
+The portfolio is split by responsibility. These are the current repository names; links point to the maintained repositories rather than planned or renamed projects.
+
+| Repository | Primary capability |
+|---|---|
+| [K8S-HA-Cluster](https://github.com/MoeinBineshpazhooh/K8S-HA-Cluster) | kubeadm, on-premises HA control plane and cluster operations |
+| [kubernetes-networking](https://github.com/MoeinBineshpazhooh/kubernetes-networking) | Calico, NetworkPolicy, ingress, SpiderNet EgressGateway and registry workflows |
+| [Storage-Artifact-Platform](https://github.com/MoeinBineshpazhooh/Storage-Artifact-Platform) | Longhorn, Ceph, MinIO, Harbor, JFrog and Nexus references |
+| [Ansible-and-Hardening](https://github.com/MoeinBineshpazhooh/Ansible-and-Hardening) | Host preparation, Linux hardening and repeatable automation |
+| [Gitlab](https://github.com/MoeinBineshpazhooh/Gitlab) | Git fundamentals, GitLab administration, CI/CD and runners |
+| [Argocd-Gitops-Platform](https://github.com/MoeinBineshpazhooh/Argocd-Gitops-Platform) | Argo CD, GitOps workflows and deployment promotion |
+| [DevSecOps](https://github.com/MoeinBineshpazhooh/DevSecOps) | Secure development, scanning, secrets and vulnerability management |
+| [enterprise-observability-platform](https://github.com/MoeinBineshpazhooh/enterprise-observability-platform) | Air-gapped Filebeat, Kafka KRaft, Logstash, Elasticsearch and Kibana |
+| [elk-centralized-log-management](https://github.com/MoeinBineshpazhooh/elk-centralized-log-management) | Elastic Stack component guides and centralized logging reference |
+
+This repository is the system-level architecture hub. Each focused repository owns its implementation details and operational documentation.
+
+---:|---|---|
 | 1 | `kubernetes-production-cluster` | **On-prem Kubernetes deployment, kubeadm and HA control plane** |
-| 2 | `kubernetes-networking` | **Calico, NetworkPolicy, MetalLB, ingress and egress** |
+| 2 | `kubernetes-networking` | **Calico, NetworkPolicy, external load-balancer options, ingress and egress** |
 | 3 | `kubernetes-storage` | **Longhorn, PV/PVC and stateful workload storage** |
 | 4 | `kubernetes-security` | **RBAC, Pod Security, isolation and workload boundaries** |
 | 5 | `kubernetes-upgrade-automation` | **Ansible + kubeadm lifecycle and upgrades** |
@@ -171,7 +186,7 @@ This separation is important: a production platform is not just a running Kubern
 
 ## 🌐 Networking layer
 
-The networking domain covers:
+The networking domain covers Calico CNI and policy enforcement, ingress traffic through external HAProxy, and controlled pod egress using SpiderNet EgressGateway. MetalLB is not presented as an implemented component.
 
 ```text
 Calico
@@ -179,7 +194,7 @@ Calico
   ├── NetworkPolicy
   └── advanced networking
 
-MetalLB
+external load-balancer options
   └── bare-metal LoadBalancer
 
 HAProxy Ingress
@@ -191,7 +206,7 @@ Kubernetes Services
   └── LoadBalancer
 ```
 
-The dedicated networking repository will contain the implementation details and troubleshooting patterns.
+The [Kubernetes Networking repository](https://github.com/MoeinBineshpazhooh/kubernetes-networking) contains the implementation details and troubleshooting patterns.
 
 ---
 
@@ -211,7 +226,7 @@ Longhorn
 Persistent Data
 ```
 
-The storage project will demonstrate provisioning, scheduling interactions, failure behavior and recovery considerations.
+The [Storage & Artifact Platform repository](https://github.com/MoeinBineshpazhooh/Storage-Artifact-Platform) documents provisioning, scheduling interactions, failure behavior and recovery considerations.
 
 ---
 
